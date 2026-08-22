@@ -50,8 +50,27 @@ Go to **Settings → Secrets and variables → Actions → New repository secret
 | `YOUTUBE_API_KEY` | https://console.cloud.google.com/apis/credentials → enable YouTube Data API v3 |
 | `YOUTUBE_CHANNEL_ID_CRYPTO_TA` | Go to the target YouTube channel → view source → find `"channelId":"UC..."`, or use https://commentpicker.com/youtube-channel-id.php |
 | `OPENAI_API_KEY` | https://platform.openai.com/api-keys — used for **both** Whisper (transcription) and GPT-4o (summarization) |
+| `YT_COOKIES` | See **YouTube cookies** section below — required to bypass YouTube's bot detection on GitHub Actions IPs |
 | `TELEGRAM_BOT_TOKEN` | Chat with `@BotFather` on Telegram → `/newbot` → copy token |
 | `TELEGRAM_CHAT_ID` | Send a message to your bot → GET `https://api.telegram.org/bot<TOKEN>/getUpdates` → find `chat.id` |
+
+### YouTube cookies (`YT_COOKIES`)
+
+YouTube blocks Azure / GCP / AWS datacenter IPs with "Sign in to confirm you're not a bot" — this includes GitHub Actions runners. The standard workaround is to pass browser cookies. Steps:
+
+1. **Install a cookie exporter**:
+   - Chrome: [Get cookies.txt LOCALLY](https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc)
+   - Firefox: [cookies.txt](https://addons.mozilla.org/en-US/firefox/addon/cookies-txt/)
+2. Open **youtube.com** in your browser (logged in to your Google account)
+3. Click the extension icon → **Export** (for current site) → download `youtube.com_cookies.txt`
+4. Open the file in a text editor → **copy the entire contents** (including the `# Netscape HTTP Cookie File` header)
+5. GitHub → Settings → Secrets → **New repository secret**:
+   - Name: `YT_COOKIES`
+   - Value: paste the full contents
+
+**Cookie rotation**: YouTube session cookies typically last 1–3 months. If the pipeline starts failing again with the same "Sign in to confirm you're not a bot" error weeks later, re-export cookies and update the secret.
+
+**Isolation tip** (optional): Use a dedicated Chrome/Firefox profile signed in to a Google account you don't use for anything else. If Google flags the account for automation, you're not risking your main account.
 
 ### 3. Enable Actions
 
