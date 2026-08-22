@@ -22,10 +22,16 @@ Add more by copying the workflow and pointing it at a different channel ID secre
 GitHub Actions cron
   → Python script (scripts/main.py)
     → Source fetcher (scripts/sources/*.py) — YouTube API to find latest video
-    → Transcribe (yt-dlp + Whisper API) — if source needs audio→text
-    → Summarize (Claude API) — structured output
+    → Transcribe (yt-dlp auto-subs, no audio download) — parse VTT → plain text
+    → Summarize (GPT-4o) — structured output
     → Notify (Telegram) + commit summary to `summaries/<source-id>/YYYY-MM-DD.md`
 ```
+
+**Why subtitles instead of Whisper?** YouTube blocks audio downloads from
+datacenter IPs (Azure/GCP/AWS) and yt-dlp's format-selector keeps hitting
+edge cases. Auto-caption endpoint is separate and much more reliable.
+Trade-off: auto-cap quality < Whisper for technical terms; for crypto TA
+content it's generally acceptable.
 
 **Extension points**:
 - **Another YouTube channel** → copy workflow yaml, change `SOURCE_ID` + channel ID secret
@@ -86,14 +92,14 @@ Go to **Actions tab → YouTube Crypto TA · Daily Digest → Run workflow**. Th
 
 | Item | Monthly |
 |---|---|
-| Whisper API | ~$1.80 |
+| yt-dlp auto-subs fetch | free |
 | GPT-4o summarization (5K in + 1.5K out × 30) | ~$0.85 |
 | YouTube Data API | free (well within 10K units/day quota) |
 | GitHub Actions | free (private repo: 2000 min/month free tier) |
 | Telegram | free |
-| **Total** | **~$2.65/month** |
+| **Total** | **~$0.85/month** |
 
-Add ~$1–2/month per additional daily source. Switch `gpt-4o` to `gpt-4o-mini` in `scripts/summarize.py` to cut summarization cost ~15× (~$0.06/month) if quality is acceptable.
+Add ~$0.85/month per additional daily source. Switch `gpt-4o` to `gpt-4o-mini` in `scripts/summarize.py` to cut summarization cost ~15× (~$0.06/month) if quality is acceptable.
 
 ---
 

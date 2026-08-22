@@ -1,47 +1,74 @@
-"""Transcribe audio content using OpenAI Whisper API."""
+"""Extract transcript from YouTube auto-generated subtitles.
+
+Pivoted from Whisper-based audio transcription to subtitle-based extraction
+because yt-dlp keeps hitting format/bot issues on GitHub Actions IPs when
+trying to download audio. Subtitles are a separate YouTube endpoint that's
+much more reliable and free.
+
+Trade-off: auto-caption quality is lower than Whisper (especially technical
+terms like coin tickers). For crypto TA content this is generally acceptable
+— we're extracting concepts, not verbatim transcription.
+
+If quality becomes a problem, we can add a Whisper fallback later, or feed
+the subtitle text through Claude/GPT-4o with a "normalize technical terms"
+step before the actual summarize prompt.
+"""
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from openai import OpenAI
+
+# Language priority order — try Chinese variants first, English as fallback
+SUB_LANGS = ["zh-Hans", "zh-CN", "zh", "zh-Hant", "zh-TW", "en"]
+
+
+def vtt_to_text(vtt: str) -> str:
+    """Extract plain text from a WebVTT subtitle string.
+
+    - Skip headers, timestamps, cue metadata, HTML tags
+    - Dedupe consecutive identical lines (YouTube auto-caps use a cumulative
+      style where each cue includes prior text)
+    """
+    lines = []
+    prev = None
+    for line in vtt.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith(("WEBVTT", "NOTE", "Kind:", "Language:", "STYLE")):
+            continue
+        if "-->" in line:
+            continue
+        # Strip HTML tags e.g. <c>, <00:00:03.360><c>, </c>
+        line = re.sub(r"<[^>]*>", "", line).strip()
+        if not line or line == prev:
+            continue
+        lines.append(line)
+        prev = line
+    return " ".join(lines)
 
 
 def transcribe(video_url: str) -> str:
-    """Download audio via yt-dlp, transcribe with Whisper, return text.
-
-    YouTube blocks datacenter IPs (Azure / GCP / AWS) with
-    "Sign in to confirm you're not a bot". The standard workaround is to
-    pass browser cookies via --cookies. Set YT_COOKIES env var (as a GitHub
-    secret) to the full Netscape cookies.txt content.
-
-    Cookies rotate — YouTube session cookies typically last 1-3 months. If
-    this starts failing with the same bot error weeks later, re-export
-    cookies from your browser and update the YT_COOKIES secret.
+    """Download YouTube auto-subs (Chinese preferred, English fallback),
+    return plain-text transcript.
     """
-    client = OpenAI()
-
     with TemporaryDirectory() as tmp:
-        audio_stem = Path(tmp) / "audio"
+        sub_stem = Path(tmp) / "subs"
 
         cmd = [
             "yt-dlp",
-            "-x",
-            "--audio-format", "mp3",
-            "-o", str(audio_stem),
-            # Exclude the `tv` client — it throws "page needs to be reloaded"
-            # with cookies auth. Include ios which is known to return
-            # audio-only DASH streams.
-            "--extractor-args", "youtube:player_client=web,web_creator,mweb,ios",
-            # Explicit permissive selector: prefer audio-only, but fall back
-            # to any best (yt-dlp/ffmpeg will extract audio via -x).
-            "-f", "bestaudio/best",
+            "--write-auto-subs",
+            "--sub-langs", ",".join(SUB_LANGS),
+            "--skip-download",
+            "--sub-format", "vtt",
+            "-o", str(sub_stem),
             "--no-warnings",
         ]
 
-        # Write cookies secret to a temp file and pass by path — yt-dlp does
-        # not accept cookies content directly, only a file path.
+        # Cookies help avoid bot detection on the subtitles endpoint too
         yt_cookies = os.environ.get("YT_COOKIES", "").strip()
         if yt_cookies:
             cookies_path = Path(tmp) / "cookies.txt"
@@ -49,8 +76,8 @@ def transcribe(video_url: str) -> str:
             cmd.extend(["--cookies", str(cookies_path)])
         else:
             sys.stderr.write(
-                "WARNING: YT_COOKIES not set. yt-dlp will likely be blocked "
-                "on GitHub Actions IPs by YouTube bot detection. See README.\n"
+                "WARNING: YT_COOKIES not set. Subtitle endpoint is less "
+                "bot-blocked than audio but may still fail without cookies.\n"
             )
 
         cmd.append(video_url)
@@ -63,10 +90,25 @@ def transcribe(video_url: str) -> str:
             sys.stderr.write("--- end yt-dlp ---\n")
             result.check_returncode()
 
-        audio_path = audio_stem.with_suffix(".mp3")
-        with audio_path.open("rb") as f:
-            resp = client.audio.transcriptions.create(
-                model="whisper-1",
-                file=f,
+        # yt-dlp writes files as <sub_stem>.<lang>.vtt (e.g. subs.zh-Hans.vtt)
+        candidates = list(Path(tmp).glob(f"{sub_stem.name}.*.vtt"))
+        if not candidates:
+            raise RuntimeError(
+                f"yt-dlp succeeded but no VTT produced. Tried langs={SUB_LANGS}. "
+                "Video may have no auto-captions in any of these languages."
             )
-        return resp.text
+
+        # Prefer languages in SUB_LANGS order
+        chosen = None
+        for lang in SUB_LANGS:
+            for c in candidates:
+                if f".{lang}." in c.name:
+                    chosen = c
+                    break
+            if chosen:
+                break
+        chosen = chosen or candidates[0]
+        print(f"Using subtitle file: {chosen.name}", file=sys.stderr)
+
+        vtt = chosen.read_text(encoding="utf-8")
+        return vtt_to_text(vtt)
