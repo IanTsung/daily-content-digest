@@ -30,7 +30,9 @@ def transcribe(video_url: str) -> str:
             "-x",
             "--audio-format", "mp3",
             "-o", str(audio_stem),
-            "--extractor-args", "youtube:player_client=web_safari,mweb,android",
+            # Default player clients — return the full format table including
+            # audio-only streams. Custom clients like web_safari/mweb often
+            # omit audio formats. Cookies alone handle bot detection now.
             "--no-warnings",
         ]
 
