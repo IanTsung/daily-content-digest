@@ -65,6 +65,9 @@ def transcribe(video_url: str) -> str:
             "--skip-download",
             "--sub-format", "vtt",
             "-o", str(sub_stem),
+            # Same tv-client exclusion as before — client config is downloaded
+            # even for subtitle-only jobs, and tv breaks with cookies auth.
+            "--extractor-args", "youtube:player_client=web,web_creator,mweb",
             "--no-warnings",
         ]
 
