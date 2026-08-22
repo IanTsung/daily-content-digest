@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+venv/
+.venv/
+.env
+.env.local
+
+# Local artifacts (audio, temp transcripts)
+*.mp3
+*.wav
+*.m4a
+*.webm
+*.opus
+.tmp/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db

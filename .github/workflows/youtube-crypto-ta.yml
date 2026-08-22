@@ -1,0 +1,48 @@
+name: YouTube Crypto TA · Daily Digest
+
+on:
+  schedule:
+    # 08:00 AEST (UTC+10 winter) / 09:00 AEDT (UTC+11 summer).
+    # Cron runs in UTC. Runners may delay 5-15 min under load, fine for a
+    # "morning brief" use case.
+    - cron: "0 22 * * *"
+  workflow_dispatch: # manual trigger for testing
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # allow commit of new summary back to repo
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install Python deps
+        run: pip install -r requirements.txt
+
+      - name: Run digest pipeline
+        env:
+          SOURCE_ID: youtube-crypto-ta
+          YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID_CRYPTO_TA }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python scripts/main.py
+
+      - name: Commit summary
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add summaries/
+          git diff --cached --quiet || git commit -m "digest(youtube-crypto-ta): $(date -u +%Y-%m-%d)"
+          git push
