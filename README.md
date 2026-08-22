@@ -2,6 +2,45 @@
 
 Serverless pipeline that fetches new content from subscribed sources daily, transcribes if audio/video, summarizes with an LLM, and pushes a brief to Telegram (or your preferred notifier).
 
+---
+
+## Status · Paused (2026-08-22)
+
+**Automated GitHub Actions runs are disabled.** After 6 iterations we confirmed YouTube blocks GitHub Actions Azure IPs across every endpoint we tried — main player API (yt-dlp with cookies, various player clients) and timedtext API (`youtube-transcript-api`) both hit bot detection. The code works; the infrastructure doesn't.
+
+### If you want to revive it later, 3 paths:
+
+| Path | Cost | Setup | Notes |
+|---|---|---|---|
+| **Self-hosted Mac runner** | $0 | 20–30 min | Runs on residential IP that YouTube doesn't block. Mac must be on at cron time |
+| **Residential proxy** | $5–15/mo | 10 min | IPRoyal / Smartproxy — configure `youtube-transcript-api` `proxies=` kwarg |
+| **Manual CLI on Mac** | $0 | 0 min | Just run `python scripts/main.py` locally with env vars set (see below) |
+
+### Manual CLI usage (works from any residential-IP machine)
+
+```bash
+git clone https://github.com/IanTsung/daily-content-digest.git
+cd daily-content-digest
+pip install -r requirements.txt
+
+export SOURCE_ID=youtube-crypto-ta
+export YOUTUBE_CHANNEL_ID=<channel_id>
+export YOUTUBE_API_KEY=<key>
+export OPENAI_API_KEY=<key>
+export TELEGRAM_BOT_TOKEN=<token>
+export TELEGRAM_CHAT_ID=<id>
+
+python scripts/main.py
+```
+
+The `summaries/<source-id>/YYYY-MM-DD.md` file lands locally; Telegram notification also sent.
+
+### To re-enable automated runs
+
+Actions tab → `YouTube Crypto TA · Daily Digest` → `⋯` → **Enable workflow**. Combined with one of the three infrastructure paths above.
+
+---
+
 **Design goals**: extensible source types, per-source workflow isolation, GitHub Actions native (no additional infrastructure to maintain).
 
 **Cost**: ~$3/month for one daily source (Whisper + Claude API + free-tier GitHub Actions).
