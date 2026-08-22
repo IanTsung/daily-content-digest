@@ -30,10 +30,13 @@ def transcribe(video_url: str) -> str:
             "-x",
             "--audio-format", "mp3",
             "-o", str(audio_stem),
-            # Exclude the `tv` client — with cookies auth it throws
-            # "The page needs to be reloaded" (auth-session mismatch).
-            # `web` + `web_creator` alone return the full audio format table.
-            "--extractor-args", "youtube:player_client=web,web_creator,mweb",
+            # Exclude the `tv` client — it throws "page needs to be reloaded"
+            # with cookies auth. Include ios which is known to return
+            # audio-only DASH streams.
+            "--extractor-args", "youtube:player_client=web,web_creator,mweb,ios",
+            # Explicit permissive selector: prefer audio-only, but fall back
+            # to any best (yt-dlp/ffmpeg will extract audio via -x).
+            "-f", "bestaudio/best",
             "--no-warnings",
         ]
 
