@@ -1,11 +1,10 @@
-"""Summarize a transcript using the Claude API.
+"""Summarize a transcript using OpenAI GPT-4o.
 
-Uses Opus 4.7 with adaptive thinking + medium effort — balances quality and
-cost for structured extraction. See Anthropic docs for effort/thinking tuning.
+Structured extraction from transcript into a Chinese markdown brief.
 """
 import os
 
-from anthropic import Anthropic
+from openai import OpenAI
 
 
 SUMMARY_PROMPT = """以下是每日內容的 transcript。請結構化總結（用中文，除非原文明顯是英文）：
@@ -21,19 +20,17 @@ Transcript：
 
 
 def summarize(source_id: str, item, transcript: str) -> str:
-    """Call Claude to produce a structured summary.
+    """Call GPT-4o to produce a structured summary.
 
-    - transcript truncated at 120K chars to keep well within 1M context window
-      even after tokenization overhead
-    - thinking: adaptive so the model decides how much reasoning is needed
-    - effort: medium — good quality/cost balance for daily automated jobs
+    - transcript truncated at 120K chars to keep well within 128K context
+      window even after tokenization overhead
+    - model: gpt-4o balances quality and cost for structured extraction.
+      Swap to gpt-4o-mini (~15x cheaper) if you want to stress-test cost first.
     """
-    client = Anthropic()
-    response = client.messages.create(
-        model="claude-opus-4-7",
+    client = OpenAI()
+    resp = client.chat.completions.create(
+        model="gpt-4o",
         max_tokens=2000,
-        thinking={"type": "adaptive"},
-        output_config={"effort": "medium"},
         messages=[
             {
                 "role": "user",
@@ -41,8 +38,4 @@ def summarize(source_id: str, item, transcript: str) -> str:
             }
         ],
     )
-    # response.content is a list of blocks (thinking + text). Extract text only.
-    for block in response.content:
-        if block.type == "text":
-            return block.text
-    return ""
+    return resp.choices[0].message.content or ""

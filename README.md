@@ -1,6 +1,6 @@
 # daily-content-digest
 
-Serverless pipeline that fetches new content from subscribed sources daily, transcribes if audio/video, summarizes with Claude, and pushes a brief to Telegram (or your preferred notifier).
+Serverless pipeline that fetches new content from subscribed sources daily, transcribes if audio/video, summarizes with an LLM, and pushes a brief to Telegram (or your preferred notifier).
 
 **Design goals**: extensible source types, per-source workflow isolation, GitHub Actions native (no additional infrastructure to maintain).
 
@@ -49,8 +49,7 @@ Go to **Settings → Secrets and variables → Actions → New repository secret
 |---|---|
 | `YOUTUBE_API_KEY` | https://console.cloud.google.com/apis/credentials → enable YouTube Data API v3 |
 | `YOUTUBE_CHANNEL_ID_CRYPTO_TA` | Go to the target YouTube channel → view source → find `"channelId":"UC..."`, or use https://commentpicker.com/youtube-channel-id.php |
-| `OPENAI_API_KEY` | https://platform.openai.com/api-keys (for Whisper transcription) |
-| `ANTHROPIC_API_KEY` | https://console.anthropic.com/settings/keys |
+| `OPENAI_API_KEY` | https://platform.openai.com/api-keys — used for **both** Whisper (transcription) and GPT-4o (summarization) |
 | `TELEGRAM_BOT_TOKEN` | Chat with `@BotFather` on Telegram → `/newbot` → copy token |
 | `TELEGRAM_CHAT_ID` | Send a message to your bot → GET `https://api.telegram.org/bot<TOKEN>/getUpdates` → find `chat.id` |
 
@@ -69,13 +68,13 @@ Go to **Actions tab → YouTube Crypto TA · Daily Digest → Run workflow**. Th
 | Item | Monthly |
 |---|---|
 | Whisper API | ~$1.80 |
-| Claude API (Opus 4.7 + adaptive thinking + medium effort) | ~$1.00 |
+| GPT-4o summarization (5K in + 1.5K out × 30) | ~$0.85 |
 | YouTube Data API | free (well within 10K units/day quota) |
 | GitHub Actions | free (private repo: 2000 min/month free tier) |
 | Telegram | free |
-| **Total** | **~$3/month** |
+| **Total** | **~$2.65/month** |
 
-Add ~$1–2/month per additional daily source.
+Add ~$1–2/month per additional daily source. Switch `gpt-4o` to `gpt-4o-mini` in `scripts/summarize.py` to cut summarization cost ~15× (~$0.06/month) if quality is acceptable.
 
 ---
 
