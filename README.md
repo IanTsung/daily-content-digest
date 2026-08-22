@@ -22,16 +22,20 @@ Add more by copying the workflow and pointing it at a different channel ID secre
 GitHub Actions cron
   → Python script (scripts/main.py)
     → Source fetcher (scripts/sources/*.py) — YouTube API to find latest video
-    → Transcribe (yt-dlp auto-subs, no audio download) — parse VTT → plain text
+    → Transcribe (youtube-transcript-api → timedtext endpoint) → plain text
     → Summarize (GPT-4o) — structured output
     → Notify (Telegram) + commit summary to `summaries/<source-id>/YYYY-MM-DD.md`
 ```
 
-**Why subtitles instead of Whisper?** YouTube blocks audio downloads from
-datacenter IPs (Azure/GCP/AWS) and yt-dlp's format-selector keeps hitting
-edge cases. Auto-caption endpoint is separate and much more reliable.
-Trade-off: auto-cap quality < Whisper for technical terms; for crypto TA
-content it's generally acceptable.
+**Why not yt-dlp?** YouTube's main player API aggressively blocks datacenter
+IPs (Azure/GCP/AWS) with bot detection. We tried yt-dlp with cookies, mobile
+clients, and multiple format-selector variants — kept hitting a moving
+target. `youtube-transcript-api` hits the separate timedtext endpoint,
+which is more tolerant.
+
+**Trade-off**: auto-caption quality < Whisper for technical terms. For
+crypto TA content it's generally acceptable — we're extracting concepts,
+not doing verbatim transcription.
 
 **Extension points**:
 - **Another YouTube channel** → copy workflow yaml, change `SOURCE_ID` + channel ID secret
@@ -55,28 +59,13 @@ Go to **Settings → Secrets and variables → Actions → New repository secret
 |---|---|
 | `YOUTUBE_API_KEY` | https://console.cloud.google.com/apis/credentials → enable YouTube Data API v3 |
 | `YOUTUBE_CHANNEL_ID_CRYPTO_TA` | Go to the target YouTube channel → view source → find `"channelId":"UC..."`, or use https://commentpicker.com/youtube-channel-id.php |
-| `OPENAI_API_KEY` | https://platform.openai.com/api-keys — used for **both** Whisper (transcription) and GPT-4o (summarization) |
-| `YT_COOKIES` | See **YouTube cookies** section below — required to bypass YouTube's bot detection on GitHub Actions IPs |
+| `OPENAI_API_KEY` | https://platform.openai.com/api-keys — used for GPT-4o summarization |
 | `TELEGRAM_BOT_TOKEN` | Chat with `@BotFather` on Telegram → `/newbot` → copy token |
 | `TELEGRAM_CHAT_ID` | Send a message to your bot → GET `https://api.telegram.org/bot<TOKEN>/getUpdates` → find `chat.id` |
 
-### YouTube cookies (`YT_COOKIES`)
+### (Historical note) `YT_COOKIES`
 
-YouTube blocks Azure / GCP / AWS datacenter IPs with "Sign in to confirm you're not a bot" — this includes GitHub Actions runners. The standard workaround is to pass browser cookies. Steps:
-
-1. **Install a cookie exporter**:
-   - Chrome: [Get cookies.txt LOCALLY](https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc)
-   - Firefox: [cookies.txt](https://addons.mozilla.org/en-US/firefox/addon/cookies-txt/)
-2. Open **youtube.com** in your browser (logged in to your Google account)
-3. Click the extension icon → **Export** (for current site) → download `youtube.com_cookies.txt`
-4. Open the file in a text editor → **copy the entire contents** (including the `# Netscape HTTP Cookie File` header)
-5. GitHub → Settings → Secrets → **New repository secret**:
-   - Name: `YT_COOKIES`
-   - Value: paste the full contents
-
-**Cookie rotation**: YouTube session cookies typically last 1–3 months. If the pipeline starts failing again with the same "Sign in to confirm you're not a bot" error weeks later, re-export cookies and update the secret.
-
-**Isolation tip** (optional): Use a dedicated Chrome/Firefox profile signed in to a Google account you don't use for anything else. If Google flags the account for automation, you're not risking your main account.
+Earlier versions of this pipeline used `yt-dlp` for audio download and needed a `YT_COOKIES` secret to bypass YouTube bot detection. We since pivoted to `youtube-transcript-api`, which hits the timedtext endpoint and does not require cookies. **You can delete the `YT_COOKIES` secret if you set one earlier.**
 
 ### 3. Enable Actions
 
